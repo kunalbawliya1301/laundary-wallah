@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
   greetBtn.addEventListener("click", () => {
     const name = input.value.trim();
     if (name === "") {
-      header.textContent = "Hello!";
+      header.textContent = "Hello";
     } else {
       header.textContent = `Hello ${name}!`;
     }
