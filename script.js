@@ -3,7 +3,10 @@ const EMAILJS_PUBLIC_KEY = "xa4_2q1s8H7pvdu0H";
 const EMAILJS_SERVICE_ID = "service_auvf4k5";
 const EMAILJS_TEMPLATE_ID = "template_zn2xde5";
 
-// Services data
+// OWNER EMAIL (fixed)
+const OWNER_EMAIL = "bawliyakunal@gmail.com";
+
+// ===== SERVICES DATA =====
 const servicesData = {
   "dry-clean": { name: "Dry Cleaning", price: 200 },
   "wash-fold": { name: "Wash & Fold", price: 100 },
@@ -13,10 +16,10 @@ const servicesData = {
   "wedding-dress": { name: "Wedding Dress Cleaning", price: 2800 },
 };
 
-// Cart object (each service present or not)
+// Cart object
 const cart = {};
 
-// DOM elements
+// DOM refs
 let cartTableBody, totalAmountEl, emptyCartText;
 let bookingForm, bookingMessage, bookingError;
 
@@ -39,8 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const heroCTA = document.getElementById("hero-cta");
   if (heroCTA) {
     heroCTA.addEventListener("click", () => {
-      const servicesSection = document.getElementById("services");
-      if (servicesSection) servicesSection.scrollIntoView({ behavior: "smooth" });
+      document.getElementById("services")?.scrollIntoView({ behavior: "smooth" });
     });
   }
 
@@ -48,23 +50,24 @@ document.addEventListener("DOMContentLoaded", () => {
   const yearSpan = document.getElementById("year");
   if (yearSpan) yearSpan.textContent = new Date().getFullYear();
 
-  // Cart DOM refs
+  // Cart DOM
   cartTableBody = document.getElementById("cart-items");
   totalAmountEl = document.getElementById("total-amount");
   emptyCartText = document.getElementById("empty-cart");
 
-  // Add/Remove buttons with toggle
+  // Add buttons
   document.querySelectorAll(".add-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-service-id");
+      const id = btn.dataset.serviceId;
       addToCart(id);
       toggleButtons(id, true);
     });
   });
 
+  // Remove buttons
   document.querySelectorAll(".remove-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-service-id");
+      const id = btn.dataset.serviceId;
       removeFromCart(id);
       toggleButtons(id, false);
     });
@@ -75,12 +78,12 @@ document.addEventListener("DOMContentLoaded", () => {
   bookingMessage = document.getElementById("booking-message");
   bookingError = document.getElementById("booking-error");
 
-  if (bookingForm) bookingForm.addEventListener("submit", handleBookingSubmit);
+  bookingForm?.addEventListener("submit", handleBookingSubmit);
 
   renderCart();
 });
 
-// Toggle visibility of Add / Remove
+// ===== BUTTON TOGGLE =====
 function toggleButtons(id, inCart) {
   const addBtn = document.querySelector(`.add-btn[data-service-id="${id}"]`);
   const removeBtn = document.querySelector(`.remove-btn[data-service-id="${id}"]`);
@@ -95,14 +98,24 @@ function toggleButtons(id, inCart) {
   }
 }
 
-// ===== CART =====
+// ===== CART LOGIC =====
+function addToCart(id) {
+  if (!servicesData[id]) return;
+  cart[id] = 1;
+  renderCart();
+}
+
+function removeFromCart(id) {
+  delete cart[id];
+  renderCart();
+}
+
 function renderCart() {
-  if (!cartTableBody || !totalAmountEl || !emptyCartText) return;
-
   cartTableBody.innerHTML = "";
-  const entries = Object.entries(cart);
 
-  if (entries.length === 0) {
+  const items = Object.entries(cart);
+
+  if (items.length === 0) {
     emptyCartText.classList.remove("hidden");
     totalAmountEl.textContent = "₹0.00";
     return;
@@ -111,20 +124,17 @@ function renderCart() {
   emptyCartText.classList.add("hidden");
 
   let total = 0;
-  entries.forEach(([id, quantity], index) => {
-    const item = servicesData[id];
-    if (!item) return;
 
-    const lineTotal = item.price * quantity;
+  items.forEach(([id, qty], index) => {
+    const item = servicesData[id];
+    const lineTotal = item.price * qty;
     total += lineTotal;
 
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td class="py-2 pr-2 text-gray-700">${index + 1}</td>
-      <td class="py-2 pr-2 text-gray-700">
-        ${item.name} <span class="text-xs text-gray-400">(x${quantity})</span>
-      </td>
-      <td class="py-2 pr-2 text-right text-gray-700">₹${lineTotal.toFixed(2)}</td>
+      <td class="py-2 pr-2">${index + 1}</td>
+      <td class="py-2 pr-2">${item.name} <span class="text-xs">(x${qty})</span></td>
+      <td class="py-2 pr-2 text-right">₹${lineTotal.toFixed(2)}</td>
     `;
     cartTableBody.appendChild(row);
   });
@@ -132,44 +142,34 @@ function renderCart() {
   totalAmountEl.textContent = "₹" + total.toFixed(2);
 }
 
-function addToCart(id) {
-  if (!servicesData[id]) return;
-  cart[id] = 1;           // one of each service
-  renderCart();
-}
-
-function removeFromCart(id) {
-  if (!cart[id]) return;
-  delete cart[id];
-  renderCart();
-}
-
 // ===== BOOKING + EMAILJS =====
 function handleBookingSubmit(e) {
   e.preventDefault();
-  if (!bookingMessage || !bookingError) return;
 
   bookingMessage.classList.add("hidden");
   bookingError.classList.add("hidden");
 
-  const fullName = document.getElementById("fullName").value;
-  const emailVal = document.getElementById("email").value;
-  const phone = document.getElementById("phone").value;
+  if (Object.keys(cart).length === 0) {
+    bookingError.textContent = "Please add at least one service.";
+    bookingError.classList.remove("hidden");
+    return;
+  }
+
+  const fullName = document.getElementById("fullName").value.trim();
+  const emailVal = document.getElementById("email").value.trim();
+  const phone = document.getElementById("phone").value.trim();
 
   let orderDetails = "";
   let total = 0;
 
-  Object.entries(cart).forEach(([id, quantity]) => {
+  Object.entries(cart).forEach(([id, qty]) => {
     const item = servicesData[id];
-    if (!item) return;
-    const lineTotal = item.price * quantity;
+    const lineTotal = item.price * qty;
     total += lineTotal;
-    orderDetails += `${item.name} x${quantity} - ₹${lineTotal.toFixed(2)}\n`;
+    orderDetails += `${item.name} x${qty} - ₹${lineTotal}\n`;
   });
 
-  if (!orderDetails) orderDetails = "No services selected.";
-
-  const templateParams = {
+  const baseParams = {
     customer_name: fullName,
     customer_email: emailVal,
     customer_phone: phone,
@@ -177,22 +177,38 @@ function handleBookingSubmit(e) {
     order_total: "₹" + total.toFixed(2),
   };
 
-  if (!window.emailjs) {
-    console.error("EmailJS not loaded");
-    bookingError.textContent = "Email service not available. Please try again later.";
-    bookingError.classList.remove("hidden");
-    return;
-  }
-
+  // 1️⃣ Send to OWNER
   emailjs
-    .send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
+    .send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      ...baseParams,
+      to_email: OWNER_EMAIL,
+      receiver_name: "Atom Laundry Admin",
+    })
+
+    // 2️⃣ Send to CUSTOMER
+    .then(() => {
+      return emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        ...baseParams,
+        to_email: emailVal,
+        receiver_name: fullName,
+      });
+    })
+
+    // SUCCESS
     .then(() => {
       bookingMessage.classList.remove("hidden");
-      bookingError.classList.add("hidden");
       bookingForm.reset();
+
+      // reset cart UI
+      Object.keys(cart).forEach((id) => toggleButtons(id, false));
+      for (const key in cart) delete cart[key];
+      renderCart();
     })
+
+    // ERROR
     .catch((err) => {
       console.error(err);
+      bookingError.textContent = "Something went wrong. Please try again.";
       bookingError.classList.remove("hidden");
     });
 }
